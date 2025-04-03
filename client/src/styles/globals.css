@@ -1,0 +1,141 @@
+/* Route: /src/styles/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Primary Colors */
+  --color-primary: #2D3047;
+  --color-primary-light: #3D4063;
+  --color-primary-dark: #1E2032;
+
+  --color-accent: #1E91D6;
+  --color-accent-light: #41A7E4;
+  --color-accent-dark: #0C78BA;
+
+  --color-secondary: #FF8370;
+  --color-secondary-light: #FF9F91;
+  --color-secondary-dark: #E56B59;
+
+  /* Secondary Colors */
+  --color-background: #F8F9FC;
+  --color-card: #EAEDF3;
+  --color-card-alt: #D9DEE8;
+
+  /* Text Colors */
+  --color-text: #171A31;
+  --color-text-secondary: #404258;
+  --color-text-tertiary: #A6A9B6;
+
+  /* Functional Colors */
+  --color-success: #34C759;
+  --color-warning: #FFCC00;
+  --color-error: #FF3B30;
+  --color-info: #5AC8FA;
+
+  /* RGB Values for opacity variations */
+  --color-primary-rgb: 45, 48, 71;
+  --color-accent-rgb: 30, 145, 214;
+  --color-secondary-rgb: 255, 131, 112;
+  --color-text-rgb: 23, 26, 49;
+  --color-background-rgb: 248, 249, 252;
+}
+
+@layer base {
+  html {
+    @apply text-midnight font-sans;
+    background-color: var(--color-background);
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-medium text-primary;
+  }
+  
+  a {
+    @apply text-accent hover:text-accent-light transition-colors;
+  }
+}
+
+@layer components {
+  /* Button Styles */
+  .btn {
+    @apply px-4 py-2 rounded font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+  
+  .btn-primary {
+    @apply btn bg-accent text-white hover:bg-accent-light focus:ring-accent;
+  }
+  
+  .btn-secondary {
+    @apply btn bg-transparent border border-accent text-accent hover:bg-accent hover:text-white focus:ring-accent;
+  }
+  
+  .btn-tertiary {
+    @apply btn bg-secondary text-white hover:bg-secondary-light focus:ring-secondary;
+  }
+  
+  .btn-success {
+    @apply btn bg-success text-white hover:bg-success/90 focus:ring-success;
+  }
+  
+  .btn-error {
+    @apply btn bg-error text-white hover:bg-error/90 focus:ring-error;
+  }
+  
+  /* Card Styles */
+  .card {
+    @apply bg-silver rounded-lg shadow-sm p-4;
+  }
+  
+  .card-alt {
+    @apply bg-silver-dark rounded-lg shadow-sm p-4;
+  }
+  
+  /* Input Styles */
+  .input {
+    @apply px-3 py-2 border border-gray rounded-md focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent;
+  }
+  
+  /* Badge Styles */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .badge-primary {
+    @apply badge bg-primary text-white;
+  }
+  
+  .badge-accent {
+    @apply badge bg-accent text-white;
+  }
+  
+  .badge-secondary {
+    @apply badge bg-secondary text-white;
+  }
+  
+  .badge-success {
+    @apply badge bg-success text-white;
+  }
+  
+  .badge-warning {
+    @apply badge bg-warning text-midnight;
+  }
+  
+  .badge-error {
+    @apply badge bg-error text-white;
+  }
+  
+  /* Premium Styles */
+  .premium-badge {
+    @apply badge bg-premium-gradient text-white;
+  }
+  
+  .premium-card {
+    @apply border border-midnight/10 bg-white rounded-lg shadow-md p-4 relative overflow-hidden;
+  }
+  
+  .premium-card::before {
+    content: '';
+    @apply absolute top-0 left-0 w-1.5 h-full bg-premium-gradient;
+  }
+}
