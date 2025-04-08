@@ -1,41 +1,70 @@
-// Route: /src/pages/AnalysisPage.tsx
+// File: client/src/pages/AnalysisPage.tsx
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../components/layout/Layout';
 import PhotoUpload from '../components/analysis/PhotoUpload';
 import FaceAnalysisResult from '../components/analysis/FaceAnalysisResult';
 import Card from '../components/common/Card';
-import { FaceAnalysis, FaceShape } from '../models/types';
+import { FaceAnalysis } from '../models/types';
+import apiService from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const AnalysisPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { sessionId, setSessionId } = useAuth();
+  
   const [currentStep, setCurrentStep] = useState<'upload' | 'analyzing' | 'result'>('upload');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<FaceAnalysis | null>(null);
+  const [error, setError] = useState<string | null>(null);
   
   const handlePhotoSelected = (file: File | null, previewUrl: string | null) => {
     setPhotoFile(file);
     setPhotoUrl(previewUrl);
   };
   
-  const handleAnalyzePhoto = async () => {
-    if (!photoFile) return;
+  const handleAnalysisComplete = (analysisResult: any) => {
+    // Save the session ID if it's returned from the API
+    if (analysisResult.sessionId) {
+      setSessionId(analysisResult.sessionId);
+    }
     
-    setCurrentStep('analyzing');
+    // Convert API response to our FaceAnalysis type
+    const faceAnalysis: FaceAnalysis = {
+      id: analysisResult.id,
+      faceShape: analysisResult.faceShape,
+      confidenceScore: analysisResult.confidenceScore,
+      photoUrl: analysisResult.photoUrl,
+      shareToken: analysisResult.shareToken,
+      createdAt: new Date(analysisResult.createdAt),
+      expiresAt: analysisResult.expiresAt ? new Date(analysisResult.expiresAt) : undefined
+    };
     
-    // In a real app, we would upload the photo to the server and get the analysis back
-    // For demo purposes, we'll simulate an API call with a timeout
-    setTimeout(() => {
-      // Mock analysis result
-      const mockAnalysis: FaceAnalysis = {
-        id: 'analysis-' + Date.now(),
-        faceShape: 'oval', // This would come from the backend
-        confidenceScore: 92,
-        createdAt: new Date(),
-      };
+    setAnalysis(faceAnalysis);
+    setCurrentStep('result');
+  };
+  
+  const handleViewRecommendations = () => {
+    if (analysis) {
+      navigate(`/recommendations/${analysis.id}`);
+    }
+  };
+  
+  const handleShareResults = () => {
+    if (analysis && analysis.shareToken) {
+      // Create shareable link
+      const shareUrl = `${window.location.origin}/shared/${analysis.shareToken}`;
       
-      setAnalysis(mockAnalysis);
-      setCurrentStep('result');
-    }, 2000); // Simulate 2 second API call
+      // Copy to clipboard
+      navigator.clipboard.writeText(shareUrl)
+        .then(() => {
+          alert('Share link copied to clipboard!');
+        })
+        .catch(() => {
+          alert('Share URL: ' + shareUrl);
+        });
+    }
   };
   
   const handleReset = () => {
@@ -43,6 +72,7 @@ const AnalysisPage: React.FC = () => {
     setPhotoFile(null);
     setPhotoUrl(null);
     setAnalysis(null);
+    setError(null);
   };
   
   return (
@@ -55,22 +85,17 @@ const AnalysisPage: React.FC = () => {
               Upload a photo to discover your face shape and get personalized haircut recommendations.
             </p>
             
+            {error && (
+              <Card className="p-4 mb-6 bg-error/10 border-error">
+                <p className="text-error">{error}</p>
+              </Card>
+            )}
+            
             {currentStep === 'upload' && (
-              <div>
-                <PhotoUpload 
-                  onPhotoSelected={handlePhotoSelected} 
-                />
-                
-                <div className="mt-6 text-center">
-                  <button
-                    className={`btn-primary ${!photoFile ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    disabled={!photoFile}
-                    onClick={handleAnalyzePhoto}
-                  >
-                    Analyze Photo
-                  </button>
-                </div>
-              </div>
+              <PhotoUpload 
+                onPhotoSelected={handlePhotoSelected}
+                onAnalysisComplete={handleAnalysisComplete}
+              />
             )}
             
             {currentStep === 'analyzing' && (
@@ -90,7 +115,9 @@ const AnalysisPage: React.FC = () => {
               <div>
                 <FaceAnalysisResult
                   analysis={analysis}
-                  photoUrl={photoUrl || undefined}
+                  photoUrl={photoUrl || analysis.photoUrl}
+                  onViewRecommendations={handleViewRecommendations}
+                  onShareResults={handleShareResults}
                 />
                 
                 <div className="mt-8 text-center">

@@ -48,11 +48,14 @@ export interface Recommendation {
 // Component props
 export interface PhotoUploadProps {
   onPhotoSelected?: (file: File | null, previewUrl: string | null) => void;
+  onAnalysisComplete?: (analysisResult: any) => void;
 }
 
 export interface FaceAnalysisResultProps {
   analysis: FaceAnalysis;
   photoUrl?: string;
+  onViewRecommendations?: () => void;
+  onShareResults?: () => void;
 }
 
 export interface HaircutCardProps {
