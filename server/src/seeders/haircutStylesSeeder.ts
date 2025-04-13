@@ -1,7 +1,6 @@
 // File: server/src/seeders/haircutStylesSeeder.ts
 import { v4 as uuidv4 } from 'uuid';
 import { HaircutStyle } from '../models/HaircutStyle';
-import { FaceShapeType } from '../models/FaceAnalysis';
 import sequelize from '../config/database';
 
 // Sample haircut styles data

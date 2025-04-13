@@ -1,6 +1,5 @@
 // File: server/src/config/database.ts
 import { Sequelize } from 'sequelize-typescript';
-import path from 'path';
 
 // Import models
 import { AnonymousSession } from '../models/AnonymousSession';

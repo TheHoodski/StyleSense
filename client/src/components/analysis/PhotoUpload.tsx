@@ -1,14 +1,26 @@
-// Route: /src/components/analysis/PhotoUpload.tsx
+// File: client/src/components/analysis/PhotoUpload.tsx
 import React, { useState, useRef } from 'react';
 import Button from '../common/Button';
 import Card from '../common/Card';
 import { PhotoUploadProps } from '../../models/types';
+import { useAuth } from '../../context/AuthContext';
+import apiService from '../../services/api';
 
-const PhotoUpload: React.FC<PhotoUploadProps> = ({ onPhotoSelected }) => {
+// Define the expected response type
+interface AnalysisResponse {
+  id: string; // or the appropriate type for id
+  // ... other properties if needed
+}
+
+const PhotoUpload: React.FC<PhotoUploadProps> = ({ onPhotoSelected, onAnalysisComplete }) => {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState<boolean>(false);
+  const [uploading, setUploading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const { sessionId } = useAuth();
   
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>): void => {
     const selectedFile = event.target.files?.[0] || null;
@@ -18,20 +30,33 @@ const PhotoUpload: React.FC<PhotoUploadProps> = ({ onPhotoSelected }) => {
   };
   
   const handleFile = (selectedFile: File): void => {
-    if (selectedFile && selectedFile.type.startsWith('image/')) {
-      setFile(selectedFile);
-      
-      // Create preview URL
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        setPreviewUrl(result);
-        if (onPhotoSelected) {
-          onPhotoSelected(selectedFile, result);
-        }
-      };
-      reader.readAsDataURL(selectedFile);
+    // Reset error state
+    setError(null);
+    
+    // Check file type
+    if (!selectedFile.type.startsWith('image/')) {
+      setError('Please select an image file (JPEG, PNG, etc.)');
+      return;
     }
+    
+    // Check file size (5MB limit)
+    if (selectedFile.size > 5 * 1024 * 1024) {
+      setError('File size exceeds 5MB limit');
+      return;
+    }
+    
+    setFile(selectedFile);
+    
+    // Create preview URL
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      setPreviewUrl(result);
+      if (onPhotoSelected) {
+        onPhotoSelected(selectedFile, result);
+      }
+    };
+    reader.readAsDataURL(selectedFile);
   };
   
   const handleClickUpload = (): void => {
@@ -73,14 +98,45 @@ const PhotoUpload: React.FC<PhotoUploadProps> = ({ onPhotoSelected }) => {
       tracks.forEach(track => track.stop());
     } catch (error) {
       console.error('Error accessing camera:', error);
+      setError('Unable to access camera. Please check permissions.');
     }
   };
   
   const handleReset = (): void => {
     setFile(null);
     setPreviewUrl(null);
+    setError(null);
     if (onPhotoSelected) {
       onPhotoSelected(null, null);
+    }
+  };
+  
+  const handleAnalyzePhoto = async (): Promise<void> => {
+    if (!file) {
+      setError('Please select a photo first');
+      return;
+    }
+    
+    setUploading(true);
+    setError(null);
+    
+    try {
+      // Upload photo to API for analysis
+      const response = await apiService.analysis.uploadPhoto(file);
+      
+      // Handle the response
+      if (response && (response as AnalysisResponse).id) {
+        if (onAnalysisComplete) {
+          onAnalysisComplete(response as AnalysisResponse);
+        }
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (error) {
+      console.error('Error analyzing photo:', error);
+      setError('Failed to analyze photo. Please try again.');
+    } finally {
+      setUploading(false);
     }
   };
   
@@ -93,6 +149,7 @@ const PhotoUpload: React.FC<PhotoUploadProps> = ({ onPhotoSelected }) => {
           className={`border-2 border-dashed rounded-lg p-6 mb-4 text-center transition-colors
             ${dragActive ? 'border-accent bg-accent/5' : 'border-gray'}
             ${previewUrl ? 'border-accent' : ''}
+            ${error ? 'border-error' : ''}
           `}
           onDragEnter={handleDrag}
           onDragOver={handleDrag}
@@ -166,11 +223,18 @@ const PhotoUpload: React.FC<PhotoUploadProps> = ({ onPhotoSelected }) => {
           )}
         </div>
         
+        {error && (
+          <div className="bg-error/10 text-error p-3 rounded-md mb-4">
+            <p>{error}</p>
+          </div>
+        )}
+        
         <div className="flex flex-col sm:flex-row gap-4">
           <Button 
             variant="secondary" 
             fullWidth
             onClick={handleCameraCapture}
+            disabled={uploading}
           >
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
@@ -198,10 +262,20 @@ const PhotoUpload: React.FC<PhotoUploadProps> = ({ onPhotoSelected }) => {
           <Button 
             variant="primary" 
             fullWidth
-            disabled={!file}
-            onClick={() => console.log('Analyzing photo...')}
+            disabled={!file || uploading}
+            onClick={handleAnalyzePhoto}
           >
-            {previewUrl ? 'Analyze Photo' : 'Upload Photo'}
+            {uploading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Analyzing...
+              </>
+            ) : (
+              previewUrl ? 'Analyze Photo' : 'Upload Photo'
+            )}
           </Button>
         </div>
       </Card>
