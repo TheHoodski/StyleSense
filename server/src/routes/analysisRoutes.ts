@@ -53,5 +53,6 @@ router.post('/face', upload.single('photo'), analysisController.analyzeFace);
 router.get('/:analysisId', analysisController.getAnalysis);
 router.get('/share/:shareToken', analysisController.getSharedAnalysis);
 router.delete('/:analysisId', analysisController.deleteAnalysis);
+router.post('/face-with-analysis', upload.single('photo'), analysisController.analyzePhotoWithClientData);
 
 export default router;

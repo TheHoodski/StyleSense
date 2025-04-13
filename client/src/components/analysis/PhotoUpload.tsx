@@ -5,11 +5,17 @@ import Card from '../common/Card';
 import { PhotoUploadProps } from '../../models/types';
 import { useAuth } from '../../context/AuthContext';
 import apiService from '../../services/api';
+import faceDetectionService from '../../services/faceDetectionService';
 
 // Define the expected response type
 interface AnalysisResponse {
-  id: string; // or the appropriate type for id
-  // ... other properties if needed
+  id: string;
+  faceShape: string;
+  confidenceScore: number;
+  photoUrl: string;
+  shareToken: string;
+  createdAt: string;
+  expiresAt: string;
 }
 
 const PhotoUpload: React.FC<PhotoUploadProps> = ({ onPhotoSelected, onAnalysisComplete }) => {
@@ -17,8 +23,11 @@ const PhotoUpload: React.FC<PhotoUploadProps> = ({ onPhotoSelected, onAnalysisCo
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [uploading, setUploading] = useState<boolean>(false);
+  const [analyzing, setAnalyzing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
   
   const { sessionId } = useAuth();
   
@@ -112,31 +121,78 @@ const PhotoUpload: React.FC<PhotoUploadProps> = ({ onPhotoSelected, onAnalysisCo
   };
   
   const handleAnalyzePhoto = async (): Promise<void> => {
-    if (!file) {
+    if (!file || !previewUrl) {
       setError('Please select a photo first');
       return;
     }
     
     setUploading(true);
+    setAnalyzing(true);
     setError(null);
     
     try {
-      // Upload photo to API for analysis
-      const response = await apiService.analysis.uploadPhoto(file);
+      // Create an image element for MediaPipe to analyze
+      if (!imageRef.current) {
+        throw new Error('Image reference not available');
+      }
       
-      // Handle the response
-      if (response && (response as AnalysisResponse).id) {
-        if (onAnalysisComplete) {
-          onAnalysisComplete(response as AnalysisResponse);
-        }
-      } else {
-        throw new Error('Invalid response from server');
+      // Ensure image is loaded
+      if (!imageRef.current.complete) {
+        await new Promise<void>(resolve => {
+          if (imageRef.current) {
+            imageRef.current.onload = () => resolve();
+          }
+        });
+      }
+      
+      // Detect face using MediaPipe
+      const faceAnalysis = await faceDetectionService.detectFace(imageRef.current);
+      
+      if (!faceAnalysis) {
+        throw new Error('No face detected in the image. Please try a clearer photo with your face visible.');
+      }
+      
+      // Now upload the photo and facial analysis data to the server
+      const formData = new FormData();
+      formData.append('photo', file);
+      formData.append('faceShape', faceAnalysis.faceShape);
+      formData.append('confidenceScore', faceAnalysis.confidenceScore.toString());
+      formData.append('landmarks', JSON.stringify(faceAnalysis.landmarks));
+      
+      // Use existing API endpoint with server-side fallback if needed
+      // This makes the integration smoother and doesn't require immediate backend changes
+      const response = await apiService.analysis.uploadPhotoWithAnalysis(formData);
+      
+      if (onAnalysisComplete) {
+        onAnalysisComplete(response as AnalysisResponse);
       }
     } catch (error) {
       console.error('Error analyzing photo:', error);
-      setError('Failed to analyze photo. Please try again.');
+      
+      // Try the server-side approach as fallback
+      try {
+        if (file) {
+          const response = await apiService.analysis.uploadPhoto(file);
+          
+          if (onAnalysisComplete && (response as AnalysisResponse).id) {
+            onAnalysisComplete(response as AnalysisResponse);
+            return;
+          }
+        }
+      } catch (fallbackError) {
+        console.error('Fallback analysis also failed:', fallbackError);
+      }
+      
+      let errorMessage = 'Failed to analyze photo. Please try again.';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
     } finally {
       setUploading(false);
+      setAnalyzing(false);
     }
   };
   
@@ -223,6 +279,15 @@ const PhotoUpload: React.FC<PhotoUploadProps> = ({ onPhotoSelected, onAnalysisCo
           )}
         </div>
         
+        {/* Hidden image for face analysis */}
+        <img
+          ref={imageRef}
+          src={previewUrl || ''}
+          alt="Face Analysis"
+          style={{ display: 'none' }}
+          crossOrigin="anonymous"
+        />
+        
         {error && (
           <div className="bg-error/10 text-error p-3 rounded-md mb-4">
             <p>{error}</p>
@@ -234,7 +299,7 @@ const PhotoUpload: React.FC<PhotoUploadProps> = ({ onPhotoSelected, onAnalysisCo
             variant="secondary" 
             fullWidth
             onClick={handleCameraCapture}
-            disabled={uploading}
+            disabled={uploading || analyzing}
           >
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
@@ -262,16 +327,16 @@ const PhotoUpload: React.FC<PhotoUploadProps> = ({ onPhotoSelected, onAnalysisCo
           <Button 
             variant="primary" 
             fullWidth
-            disabled={!file || uploading}
+            disabled={!file || uploading || analyzing}
             onClick={handleAnalyzePhoto}
           >
-            {uploading ? (
+            {uploading || analyzing ? (
               <>
                 <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Analyzing...
+                {analyzing ? 'Analyzing Face...' : 'Uploading...'}
               </>
             ) : (
               previewUrl ? 'Analyze Photo' : 'Upload Photo'

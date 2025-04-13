@@ -1,4 +1,4 @@
-// File: client/src/services/api.ts
+// client/src/services/api.ts
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 
 // API base URL (can be overridden by environment variables)
@@ -99,6 +99,18 @@ export const apiService = {
         },
       });
     },
+    
+    // NEW METHOD: Upload photo with client-side analysis data
+    uploadPhotoWithAnalysis: (formData: FormData) =>
+      request({
+        method: 'POST',
+        url: '/analysis/face-with-analysis',
+        data: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          ...(localStorage.getItem('sessionId') ? { 'Session-ID': localStorage.getItem('sessionId') } : {}),
+        },
+      }),
     
     getAnalysis: (analysisId: string) =>
       request({

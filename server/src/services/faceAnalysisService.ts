@@ -285,3 +285,113 @@ export const getFaceShapeInfo = (faceShape: FaceShapeType): {
   
   return faceShapeInfo[faceShape];
 };
+
+/**
+ * Process landmarks from client-side analysis to determine face shape
+ * This is a new function to support client-side MediaPipe analysis
+ * 
+ * @param landmarks Array of facial landmark coordinates from MediaPipe
+ * @returns Face shape and confidence score
+ */
+export const determineShapeFromLandmarks = (landmarks: number[][]): {
+  faceShape: FaceShapeType;
+  confidenceScore: number;
+} => {
+  try {
+    // Extract key measurements from landmarks
+    // Note: These indices would need to match MediaPipe's face mesh model points
+    // The actual implementation would use the specific landmark points
+    
+    // For a simplified example:
+    // Calculate face width to height ratio using landmark coordinates
+    // Get jaw width (distance between jaw corners)
+    const jawLeftPoint = landmarks[134]; // Index depends on MediaPipe face mesh
+    const jawRightPoint = landmarks[365]; // Index depends on MediaPipe face mesh
+    const jawWidth = calculateDistance(jawLeftPoint, jawRightPoint);
+    
+    // Get forehead width
+    const foreheadLeftPoint = landmarks[71]; // Index depends on MediaPipe face mesh
+    const foreheadRightPoint = landmarks[301]; // Index depends on MediaPipe face mesh
+    const foreheadWidth = calculateDistance(foreheadLeftPoint, foreheadRightPoint);
+    
+    // Get face height
+    const foreheadTopPoint = landmarks[10]; // Top of forehead
+    const chinBottomPoint = landmarks[152]; // Bottom of chin
+    const faceHeight = calculateDistance(foreheadTopPoint, chinBottomPoint);
+    
+    // Get cheekbone width
+    const cheekboneLeftPoint = landmarks[116]; // Left cheekbone
+    const cheekboneRightPoint = landmarks[345]; // Right cheekbone
+    const cheekboneWidth = calculateDistance(cheekboneLeftPoint, cheekboneRightPoint);
+    
+    // Calculate ratios for face shape determination
+    const faceWidthToHeightRatio = Math.max(jawWidth, foreheadWidth, cheekboneWidth) / faceHeight;
+    const jawToForeheadRatio = jawWidth / foreheadWidth;
+    const cheekboneToJawRatio = cheekboneWidth / jawWidth;
+    
+    // Simple decision tree for face shape classification
+    // Note: This is a simplified implementation and would need to be refined
+    // based on real-world testing and expert input
+    
+    let faceShape: FaceShapeType = 'oval'; // Default
+    let confidence = 75; // Default confidence
+    
+    if (faceWidthToHeightRatio > 0.8) {
+      // Face is wider
+      if (jawToForeheadRatio > 1.1) {
+        faceShape = 'triangle';
+        confidence = 70 + 10 * (jawToForeheadRatio - 1.1);
+      } else if (jawToForeheadRatio < 0.9) {
+        faceShape = 'heart';
+        confidence = 70 + 10 * (0.9 - jawToForeheadRatio);
+      } else if (cheekboneToJawRatio > 1.1) {
+        faceShape = 'diamond';
+        confidence = 70 + 10 * (cheekboneToJawRatio - 1.1);
+      } else {
+        faceShape = 'round';
+        confidence = 70;
+      }
+    } else if (faceWidthToHeightRatio < 0.7) {
+      // Face is longer
+      if (jawToForeheadRatio > 0.95 && jawToForeheadRatio < 1.05) {
+        faceShape = 'rectangle';
+        confidence = 70 + 10 * (1 - Math.abs(jawToForeheadRatio - 1));
+      } else {
+        faceShape = 'oval';
+        confidence = 75;
+      }
+    } else {
+      // Medium proportions
+      if (jawToForeheadRatio > 0.95 && jawToForeheadRatio < 1.05) {
+        faceShape = 'square';
+        confidence = 70 + 10 * (1 - Math.abs(jawToForeheadRatio - 1));
+      } else {
+        faceShape = 'oval';
+        confidence = 75;
+      }
+    }
+    
+    return {
+      faceShape,
+      confidenceScore: Math.min(Math.round(confidence), 95) // Cap at 95% confidence
+    };
+  } catch (error) {
+    console.error('Error determining face shape from landmarks:', error);
+    // Default to oval face shape if we can't determine
+    return {
+      faceShape: 'oval',
+      confidenceScore: 70
+    };
+  }
+};
+
+/**
+ * Calculate distance between two points
+ * Helper function for face shape determination
+ */
+const calculateDistance = (point1: number[], point2: number[]): number => {
+  return Math.sqrt(
+    Math.pow(point2[0] - point1[0], 2) +
+    Math.pow(point2[1] - point1[1], 2)
+  );
+};

@@ -8,6 +8,7 @@ import { uploadToS3, deleteFromS3, getSignedS3Url } from '../utils/s3Utils';
 import { AnonymousSession } from '../models/AnonymousSession';
 import { FaceAnalysis } from '../models/FaceAnalysis';
 import { FaceAnalysisDto } from '../types';
+import { FaceShapeType } from '../models/FaceAnalysis';
 
 /**
  * Analyze a facial photo and determine face shape
@@ -76,6 +77,84 @@ export const analyzeFace = async (req: Request, res: Response, next: NextFunctio
       id: analysisId,
       faceShape: analysisResult.faceShape,
       confidenceScore: analysisResult.confidenceScore,
+      photoUrl,
+      shareToken,
+      createdAt: analysis.created_at,
+      expiresAt: analysis.expires_at,
+      sessionId // Return session ID for client to store
+    });
+    
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Process a photo that has already been analyzed by the client
+ * This is a new endpoint to handle client-side face analysis
+ */
+export const analyzePhotoWithClientData = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    // Check if file was uploaded
+    if (!req.file) {
+      throw new AppError('No photo uploaded', 400);
+    }
+    
+    // Extract analysis data
+    const { faceShape, confidenceScore } = req.body;
+    
+    if (!faceShape || !confidenceScore) {
+      throw new AppError('Missing face analysis data', 400);
+    }
+    
+    const photoPath = req.file.path;
+    let sessionId = req.headers['session-id'] as string;
+    const userId = req.user?.id;
+    
+    // If no session ID provided, create a new anonymous session
+    if (!sessionId) {
+      const session = await AnonymousSession.create({
+        session_id: uuidv4(),
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent']
+      });
+      
+      sessionId = session.session_id;
+    }
+    
+    // Upload to S3 for storage (with expiration)
+    const s3Key = `faces/${uuidv4()}-${req.file.originalname}`;
+    await uploadToS3(photoPath, s3Key);
+    
+    // Delete the temp file after upload
+    await fs.unlink(photoPath);
+    
+    // Create analysis record in database
+    const analysisId = uuidv4();
+    const shareToken = uuidv4();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // Expire in 7 days
+    
+    const analysis = await FaceAnalysis.create({
+      analysis_id: analysisId,
+      session_id: sessionId,
+      user_id: userId,
+      photo_key: s3Key,
+      face_shape: faceShape as FaceShapeType,
+      confidence_score: parseFloat(confidenceScore),
+      share_token: shareToken,
+      expires_at: expiresAt,
+      is_deleted: false
+    });
+    
+    // Generate signed URL for the photo
+    const photoUrl = await getSignedS3Url(s3Key);
+    
+    // Return analysis result
+    res.status(201).json({
+      id: analysisId,
+      faceShape,
+      confidenceScore: parseFloat(confidenceScore),
       photoUrl,
       shareToken,
       createdAt: analysis.created_at,
@@ -220,6 +299,7 @@ export const deleteAnalysis = async (req: Request, res: Response, next: NextFunc
 // Export the controller object for routes
 export const analysisController = {
   analyzeFace,
+  analyzePhotoWithClientData, // Add the new method
   getAnalysis,
   getSharedAnalysis,
   deleteAnalysis
