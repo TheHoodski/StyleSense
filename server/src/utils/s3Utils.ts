@@ -1,77 +1,89 @@
-// File: server/src/utils/s3Utils.ts
-import fs from 'fs';
-import { 
-  S3Client, 
-  PutObjectCommand, 
-  DeleteObjectCommand,
-  GetObjectCommand 
-} from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+// File: server/src/utils/s3Utils.ts (Local Version)
+import path from 'path';
+import { promises as fsPromises } from 'fs';
 
-// S3 bucket name
-const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'stylesense-dev';
+// Local storage paths
+const UPLOADS_DIR = path.join(__dirname, '../../uploads');
+const FACES_DIR = path.join(UPLOADS_DIR, 'faces');
 
-// Create S3 client
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || ''
+// Make sure directories exist
+(async () => {
+  try {
+    await fsPromises.mkdir(FACES_DIR, { recursive: true });
+    console.log('Storage directories created');
+  } catch (error) {
+    console.error('Error creating storage directories:', error);
   }
-});
+})();
 
 /**
- * Upload a file to S3
- * @param filePath Local file path
- * @param key S3 key (path)
+ * Upload a file to local storage (replaces S3 upload)
+ * @param filePath Local source file path
+ * @param key Destination key (path)
  */
 export const uploadToS3 = async (filePath: string, key: string): Promise<void> => {
-  const fileContent = fs.readFileSync(filePath);
-  
-  const params = {
-    Bucket: BUCKET_NAME,
-    Key: key,
-    Body: fileContent,
-    ContentType: getContentType(key)
-  };
-  
-  await s3Client.send(new PutObjectCommand(params));
+  try {
+    // Create destination directory if it doesn't exist
+    const destDir = path.dirname(path.join(UPLOADS_DIR, key));
+    await fsPromises.mkdir(destDir, { recursive: true });
+    
+    // Copy file to destination
+    await fsPromises.copyFile(filePath, path.join(UPLOADS_DIR, key));
+    
+    console.log(`File uploaded to local storage: ${key}`);
+  } catch (error) {
+    console.error('Error uploading file to local storage:', error);
+    throw error;
+  }
 };
 
 /**
- * Delete a file from S3
- * @param key S3 key (path)
+ * Delete a file from local storage (replaces S3 delete)
+ * @param key File key (path)
  */
 export const deleteFromS3 = async (key: string): Promise<void> => {
-  const params = {
-    Bucket: BUCKET_NAME,
-    Key: key
-  };
-  
-  await s3Client.send(new DeleteObjectCommand(params));
+  try {
+    const filePath = path.join(UPLOADS_DIR, key);
+    
+    // Check if file exists
+    await fsPromises.access(filePath);
+    
+    // Delete file
+    await fsPromises.unlink(filePath);
+    
+    console.log(`File deleted from local storage: ${key}`);
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      console.warn(`File not found in local storage: ${key}`);
+      return; // File doesn't exist, so consider it "deleted"
+    }
+    
+    console.error('Error deleting file from local storage:', error);
+    throw error;
+  }
 };
 
 /**
- * Get a signed URL for an S3 object
- * @param key S3 key (path)
- * @param expiresIn Expiry time in seconds (default: 3600)
+ * Get a URL for a file in local storage (replaces S3 signed URL)
+ * @param key File key (path)
+ * @param expiresIn Expiry time in seconds (unused in local version)
  */
 export const getSignedS3Url = async (key: string, expiresIn: number = 3600): Promise<string> => {
-  const params = {
-    Bucket: BUCKET_NAME,
-    Key: key
-  };
+  // In a production app with a real web server, this would return a URL to access the file
+  // For this simplified version, we'll return a local file path
+  const baseUrl = process.env.LOCAL_FILE_SERVER_URL || 'http://localhost:5000';
+  const apiPath = '/api/files'; // Add a route in Express to serve these files
   
-  const command = new GetObjectCommand(params);
-  
-  return getSignedUrl(s3Client, command, { expiresIn });
+  const expirationTime = Date.now() + expiresIn * 1000; // Calculate expiration time
+  const signedUrl = `${baseUrl}${apiPath}/${encodeURIComponent(key)}?expires=${expirationTime}`; // Use expiresIn in the URL
+  return signedUrl;
 };
 
 /**
  * Determine content type based on file extension
  * @param filename Filename with extension
  */
-const getContentType = (filename: string): string => {
+export const getContentType = (filename: string): string => {
   const ext = filename.split('.').pop()?.toLowerCase();
   
   switch (ext) {

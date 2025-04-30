@@ -11,6 +11,10 @@ import analysisRoutes from './routes/analysisRoutes';
 import recommendationRoutes from './routes/recommendationRoutes';
 import stylesRoutes from './routes/stylesRoutes';
 import userRoutes from './routes/userRoutes';
+import fileRoutes from './routes/fileRoutes'; // New route for serving files
+
+// Import database initialization
+import { initDatabase } from './config/database';
 
 // Extend Express Request type to include custom properties
 declare global {
@@ -58,6 +62,7 @@ app.use('/api/analysis', analysisRoutes);
 app.use('/api/recommendations', recommendationRoutes);
 app.use('/api/styles', stylesRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/files', fileRoutes); // Add file serving route
 
 // Health check endpoint
 app.get('/health', (_req: Request, res: Response) => {
@@ -90,6 +95,15 @@ app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
     }
   });
 });
+
+// Initialize database
+initDatabase()
+  .then(() => {
+    console.log('Database initialized successfully');
+  })
+  .catch(error => {
+    console.error('Database initialization failed:', error);
+  });
 
 // Start server
 const PORT = process.env.PORT || 5000;

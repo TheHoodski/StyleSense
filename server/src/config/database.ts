@@ -34,6 +34,14 @@ const sequelize = new Sequelize({
 
 // Database initialization function
 export const initDatabase = async (): Promise<void> => {
+    // Add this before connecting to the database in initDatabase function
+  console.log('Database connection parameters:');
+  console.log(`Host: ${process.env.DB_HOST}`);
+  console.log(`Port: ${process.env.DB_PORT}`);
+  console.log(`Database: ${process.env.DB_NAME}`);
+  console.log(`Username: ${process.env.DB_USER}`);
+  console.log(`Password: ${process.env.DB_PASSWORD ? '[HIDDEN]' : 'missing'}`);
+  console.log(`Schema: ${process.env.DB_SCHEMA || 'default'}`);
   try {
     // Only sync in development mode
     if (process.env.NODE_ENV !== 'production') {

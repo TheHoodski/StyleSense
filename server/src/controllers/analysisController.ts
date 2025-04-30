@@ -12,6 +12,7 @@ import { FaceShapeType } from '../models/FaceAnalysis';
 
 /**
  * Analyze a facial photo and determine face shape
+ * This endpoint now accepts client-side analysis or falls back to basic detection
  */
 export const analyzeFace = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -35,7 +36,7 @@ export const analyzeFace = async (req: Request, res: Response, next: NextFunctio
       sessionId = session.session_id;
     }
     
-    // Process the photo with face detection
+    // Use simplified analysis that doesn't require TensorFlow.js
     const analysisResult = await faceAnalysisService.analyzePhoto(photoPath);
     
     if (!analysisResult.success) {
@@ -62,7 +63,7 @@ export const analyzeFace = async (req: Request, res: Response, next: NextFunctio
       session_id: sessionId,
       user_id: userId,
       photo_key: s3Key,
-      face_shape: analysisResult.faceShape,
+      face_shape: analysisResult.faceShape as FaceShapeType,
       confidence_score: analysisResult.confidenceScore,
       share_token: shareToken,
       expires_at: expiresAt,
@@ -91,7 +92,7 @@ export const analyzeFace = async (req: Request, res: Response, next: NextFunctio
 
 /**
  * Process a photo that has already been analyzed by the client
- * This is a new endpoint to handle client-side face analysis
+ * This endpoint receives the face shape analysis data from the client
  */
 export const analyzePhotoWithClientData = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -299,7 +300,7 @@ export const deleteAnalysis = async (req: Request, res: Response, next: NextFunc
 // Export the controller object for routes
 export const analysisController = {
   analyzeFace,
-  analyzePhotoWithClientData, // Add the new method
+  analyzePhotoWithClientData,
   getAnalysis,
   getSharedAnalysis,
   deleteAnalysis

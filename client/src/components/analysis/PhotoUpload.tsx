@@ -1,5 +1,5 @@
 // File: client/src/components/analysis/PhotoUpload.tsx
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Button from '../common/Button';
 import Card from '../common/Card';
 import { PhotoUploadProps } from '../../models/types';
@@ -30,6 +30,19 @@ const PhotoUpload: React.FC<PhotoUploadProps> = ({ onPhotoSelected, onAnalysisCo
   const imageRef = useRef<HTMLImageElement>(null);
   
   const { sessionId } = useAuth();
+  
+  // Initialize face detection service when component mounts
+  useEffect(() => {
+    const init = async () => {
+      try {
+        await faceDetectionService.initialize();
+      } catch (error) {
+        console.error('Failed to initialize face detection service:', error);
+      }
+    };
+    
+    init();
+  }, []);
   
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>): void => {
     const selectedFile = event.target.files?.[0] || null;
@@ -157,12 +170,21 @@ const PhotoUpload: React.FC<PhotoUploadProps> = ({ onPhotoSelected, onAnalysisCo
       formData.append('photo', file);
       formData.append('faceShape', faceAnalysis.faceShape);
       formData.append('confidenceScore', faceAnalysis.confidenceScore.toString());
-      formData.append('landmarks', JSON.stringify(faceAnalysis.landmarks));
       
-      // Use existing API endpoint with server-side fallback if needed
-      // This makes the integration smoother and doesn't require immediate backend changes
+      // Add landmarks data if available
+      if (faceAnalysis.landmarks) {
+        formData.append('landmarks', JSON.stringify(faceAnalysis.landmarks));
+      }
+      
+      console.log('Uploading photo with face analysis data:', {
+        faceShape: faceAnalysis.faceShape,
+        confidenceScore: faceAnalysis.confidenceScore
+      });
+      
+      // Use the endpoint that accepts client-side analysis
       const response = await apiService.analysis.uploadPhotoWithAnalysis(formData);
       
+      // If successful, call the onAnalysisComplete callback
       if (onAnalysisComplete) {
         onAnalysisComplete(response as AnalysisResponse);
       }
@@ -171,7 +193,9 @@ const PhotoUpload: React.FC<PhotoUploadProps> = ({ onPhotoSelected, onAnalysisCo
       
       // Try the server-side approach as fallback
       try {
+        console.log('Client-side analysis failed, trying server-side analysis...');
         if (file) {
+          // Use the regular upload endpoint as a fallback
           const response = await apiService.analysis.uploadPhoto(file);
           
           if (onAnalysisComplete && (response as AnalysisResponse).id) {

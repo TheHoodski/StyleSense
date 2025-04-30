@@ -15,7 +15,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
  */
 export const authMiddleware = async (
   req: Request,
-  res: Response,
+  _res: Response,
   next: NextFunction,
   optional: boolean = false
 ): Promise<void> => {
@@ -60,7 +60,7 @@ export const authMiddleware = async (
  */
 export const premiumMiddleware = (
   req: Request,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): void => {
   try {
